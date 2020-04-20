@@ -1,0 +1,13 @@
+[Unit]
+Description=Run puppy service
+After=network-online.target
+
+[Service]
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/puppy
+ExecStart=/bin/node index.js
+ExecStop=/bin/kill $MAINPID
+
+[Install]
+WantedBy=multi-user.target
