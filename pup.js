@@ -4,13 +4,14 @@ const puppeteer = require('puppeteer'),
 const defaults = {
 	pdf: true, // if false then getPage will return a screenshot
 	viewPort: {
-		width: 1080,
-		height: 1920,
+		width: 1920,
+		height: 1080,
 	},
 	media: 'screen',
 	pdfOpts: {
+		format: 'A4',
+		scale: 1,
 		preferCSSPageSize: true,
-		format: 'letter',
 		printBackground: true,
 	},
 	screenshotOpts: {
@@ -32,10 +33,18 @@ const grab = async (opts, fn) => {
 
 	if (!url || !url.startsWith('http')) return fn(null, `invalid url: ${url}`);
 
-	const browser = await puppeteer.launch({ defaultViewport: opts.viewPort }),
+	const start = Date.now(),
+		browser = await puppeteer.launch({
+			defaultViewport: null,
+			args: ['--no-sandbox', '--disable-setuid-sandbox', '--user-data-dir=/tmp/puppy'],
+		}),
 		page = await browser.newPage();
 
 	try {
+		await page.setDefaultNavigationTimeout(0);
+		await page.emulateMedia(opts.media);
+		// await page.setViewport({ width, height });
+
 		if (opts.headers) {
 			await page.setRequestInterception(true);
 
@@ -49,17 +58,22 @@ const grab = async (opts, fn) => {
 		}
 
 		await page.setBypassCSP(true);
-		await page.goto(url, { waitUntil: 'networkidle2' });
+		await page.setCacheEnabled(true);
+		await page.goto(url, { waitUntil: 'networkidle0' });
+		// eslint-disable-next-line no-undef
+		await page.evaluate(() => document.body.classList.add('puppy'));
+		//await page.waitFor(1);
+		//await waitTillHTMLRendered(page);
 
 		let buf = null;
 		if (opts.pdf === true) {
-			await page.emulateMedia(opts.media);
 			buf = await page.pdf(opts.pdfOpts);
 		} else {
 			buf = await page.screenshot(opts.screenshotOpts);
 		}
 
 		await fn(buf);
+		console.log(`${JSON.stringify(opts)}, took: ${(Date.now() - start)/1000}s.`)
 	} catch (err) {
 		await fn(null, err);
 	} finally {
@@ -68,3 +82,24 @@ const grab = async (opts, fn) => {
 };
 
 module.exports = { defaults, grab };
+
+const waitTillHTMLRendered = async (page, timeout = 30000) => {
+	const minStableIters = 1,
+		checkDurationMsecs = 250;
+
+	let checks = (timeout / checkDurationMsecs) + 1,
+		lastSize = 0,
+		stableIter = 0;
+
+	while (checks--) {
+		const html = await page.content(),
+			curSize = html.length;
+
+		stableIter = lastSize > 0 && curSize === lastSize ? stableIter + 1 : 0;
+
+		if (stableIter >= minStableIters) break;
+
+		lastSize = curSize;
+		await page.waitFor(checkDurationMsecs);
+	}
+};

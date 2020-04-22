@@ -3,12 +3,31 @@ const pup = require('./pup'),
 	bodyParser = require('body-parser'),
 	app = express();
 
-
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 // @ts-ignore
 const defaults = { ...pup.defaults };
+
+app.get('/page', async (req, res) => {
+	const { url, type } = req.query;
+	if (typeof url !== 'string' || !url.startsWith('http')) return res.status(400).send(`invalid url: ${url}`);
+
+	await pup.grab(
+		{
+			url,
+			media: 'print',
+			pdf: !type || type === 'pdf',
+			png: type === 'png',
+		},
+		async (buf, err) => {
+			if (err) return res.status(400).send(`error: ${'message' in err ? err.message : err}`);
+			// @ts-ignore
+			res.type(type || 'pdf');
+			await res.send(buf);
+		}
+	);
+});
 
 app.post('/grab', async (req, res) => {
 	const opts = { ...defaults, ...req.body };
