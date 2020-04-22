@@ -62,8 +62,7 @@ const grab = async (opts, fn) => {
 		await page.goto(url, { waitUntil: 'networkidle0' });
 		// eslint-disable-next-line no-undef
 		await page.evaluate(() => document.body.classList.add('puppy'));
-		//await page.waitFor(1);
-		//await waitTillHTMLRendered(page);
+		await waitForRendered(page);
 
 		let buf = null;
 		if (opts.pdf === true) {
@@ -83,8 +82,8 @@ const grab = async (opts, fn) => {
 
 module.exports = { defaults, grab };
 
-const waitTillHTMLRendered = async (page, timeout = 30000) => {
-	const minStableIters = 1,
+const waitForRendered = async (page, timeout = 45000) => {
+	const minStableIters = 3,
 		checkDurationMsecs = 250;
 
 	let checks = (timeout / checkDurationMsecs) + 1,
