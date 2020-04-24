@@ -19,6 +19,8 @@ const defaults = {
 	},
 };
 
+const badHeaders = /^(?:X-Forwarded|Sec-Fetch|User-Agent|Content-|Accept-|Connection|Origin)/i
+
 const grab = async (opts, fn) => {
 	if (!opts || !fn) throw new Error('must pass opts|url and a callback fn');
 
@@ -42,7 +44,6 @@ const grab = async (opts, fn) => {
 
 	try {
 		await page.setDefaultNavigationTimeout(0);
-		await page.emulateMedia(opts.media);
 		// await page.setViewport({ width, height });
 
 		if (opts.headers) {
@@ -50,9 +51,10 @@ const grab = async (opts, fn) => {
 
 			page.on('request', (req) => {
 				const headers = req.headers();
-
-				for (const k in opts.headers) headers[k] = opts.headers[k];
-
+				for (const k in opts.headers) {
+					if (k.match(badHeaders)) continue;
+					headers[k] = opts.headers[k].join('');
+				}
 				req.continue({ headers });
 			});
 		}
@@ -60,6 +62,7 @@ const grab = async (opts, fn) => {
 		await page.setBypassCSP(true);
 		await page.setCacheEnabled(true);
 		await page.goto(url, { waitUntil: 'networkidle0' });
+		await page.emulateMedia(opts.media);
 		// eslint-disable-next-line no-undef
 		await page.evaluate(() => document.body.classList.add('puppy'));
 		await waitForRendered(page);
