@@ -4,22 +4,24 @@ const puppeteer = require('puppeteer'),
 const defaults = {
 	pdf: true, // if false then getPage will return a screenshot
 	viewPort: {
-		width: 1920,
-		height: 1080,
+		width: 1080,
+		height: 1920,
 	},
 	media: 'screen',
 	pdfOpts: {
-		format: 'A4',
+		//format: 'A4',
 		scale: 1,
-		preferCSSPageSize: true,
+		preferCSSPageSize: false,
 		printBackground: true,
+		width: 1080,
+		height: 1920,
 	},
 	screenshotOpts: {
 		fullPage: true,
 	},
 };
 
-const badHeaders = /^(?:X-Forwarded|Sec-Fetch|User-Agent|Content-|Accept-|Connection|Origin)/i
+const badHeaders = /^(?:Accept|Pragma|X-Forwarded|Sec-Fetch|User-Agent|Content-|Accept-|Connection|Origin)/i;
 
 const grab = async (opts, fn) => {
 	if (!opts || !fn) throw new Error('must pass opts|url and a callback fn');
@@ -37,10 +39,12 @@ const grab = async (opts, fn) => {
 
 	const start = Date.now(),
 		browser = await puppeteer.launch({
-			defaultViewport: null,
-			args: ['--no-sandbox', '--disable-setuid-sandbox', '--user-data-dir=/tmp/puppy'],
+			defaultViewport: opts.viewPort,
+			//headless: false,
+			// executablePath: '/bin/google-chrome',
+			args: ['--no-sandbox', '--disable-setuid-sandbox'] //, '--auto-open-devtools-for-tabs'],
 		}),
-		page = await browser.newPage();
+		page = (await browser.pages())[0];
 
 	try {
 		await page.setDefaultNavigationTimeout(0);
@@ -52,7 +56,9 @@ const grab = async (opts, fn) => {
 			page.on('request', (req) => {
 				const headers = req.headers();
 				for (const k in opts.headers) {
-					if (k.match(badHeaders)) continue;
+					if (k.match(badHeaders)) {
+						continue;
+					}
 					headers[k] = opts.headers[k].join('');
 				}
 				req.continue({ headers });
@@ -61,12 +67,13 @@ const grab = async (opts, fn) => {
 
 		await page.setBypassCSP(true);
 		await page.setCacheEnabled(true);
+		// await page.waitFor(1000);
 		await page.goto(url, { waitUntil: 'networkidle0' });
 		await page.emulateMedia(opts.media);
 		// eslint-disable-next-line no-undef
 		await page.evaluate(() => document.body.classList.add('puppy'));
 		await waitForRendered(page);
-
+		// await page.waitFor(50000);
 		let buf = null;
 		if (opts.pdf === true) {
 			buf = await page.pdf(opts.pdfOpts);
@@ -75,7 +82,7 @@ const grab = async (opts, fn) => {
 		}
 
 		await fn(buf);
-		console.log(`${JSON.stringify(opts)}, took: ${(Date.now() - start)/1000}s.`)
+		console.log(`${JSON.stringify(opts)}, took: ${(Date.now() - start) / 1000}s.`);
 	} catch (err) {
 		await fn(null, err);
 	} finally {
@@ -89,7 +96,7 @@ const waitForRendered = async (page, timeout = 45000) => {
 	const minStableIters = 3,
 		checkDurationMsecs = 250;
 
-	let checks = (timeout / checkDurationMsecs) + 1,
+	let checks = timeout / checkDurationMsecs + 1,
 		lastSize = 0,
 		stableIter = 0;
 

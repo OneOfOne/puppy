@@ -35,7 +35,7 @@ app.post('/grab', async (req, res) => {
 	if (opts.png) delete opts.pdf;
 	// @ts-ignore
 	if (!opts.url || !opts.url.startsWith('http')) return res.status(400).send(`invalid url: ${opts.url}`);
-	console.log(`${req.ip}: ${JSON.stringify(opts)}`);
+	//console.log(`${req.ip}: ${JSON.stringify(opts)}`);
 
 	await pup.grab(opts, async (buf, err) => {
 		if (err) return res.status(400).send(`error: ${'message' in err ? err.message : err}`);
